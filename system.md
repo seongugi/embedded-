@@ -71,15 +71,6 @@ Raspberry Pi는 고수준 판단(High-Level Decision)을 담당한다.
 "사용자가 앞으로 숙였다"
 → target_mode = SOFT_CONTACT
 ```
-
-즉 Raspberry Pi는:
-
-```text
-AI / Supervisor ECU
-```
-
-역할을 수행한다.
-
 ---
 
 # 4. STM_1 역할
@@ -95,14 +86,6 @@ STM_1은 Safety Sensor ECU 역할을 수행한다.
 - 충돌 판단
 - Emergency CAN 송신
 
-즉 STM_1은:
-
-```text
-실시간 사고 판단 ECU
-```
-
-역할을 수행한다.
-
 ---
 
 # 5. STM_2 역할
@@ -117,14 +100,6 @@ STM_2는 실제 Headrest 제어를 담당한다.
 - Haptic Motor 제어
 - Locking 제어
 - Emergency 최우선 처리
-
-즉 STM_2는:
-
-```text
-실제 Actuator 제어 ECU
-```
-
-역할을 수행한다.
 
 ---
 
