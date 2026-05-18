@@ -161,9 +161,58 @@ filtered = alpha * prev + (1.0f - alpha) * raw;
 
 따라서 본 프로젝트 또한 정상 상황 데이터, 비충돌 상황 데이터, 충돌 상황 데이터를 반복 측정하여 threshold를 결정하였다.
 
-## 13. 최종 구현 코드
+## 13. Sliding Window 적용 이유
 
-### 13.1 상수 및 상태 정의
+기존의 단순 누적 방식에서는 다음과 같이 ΔV와 SPOM이 계속 증가하는 문제가 있다.
+
+```c
+delta_v += delta_v_sample;
+spom += spom_sample;
+```
+
+이 경우 실제 충돌이 발생하지 않아도 작은 acceleration noise나 진동이 장시간 누적되면 threshold를 초과할 수 있다.
+
+따라서 본 프로젝트에서는 최근 일정 시간 구간의 crash pulse만 판단에 사용하기 위해 Sliding Window 방식을 적용하였다.
+
+본 프로젝트에서는 1kHz 샘플링 기준으로 `WINDOW_SIZE = 100`을 사용하여 최근 100ms 구간의 ΔV와 SPOM만 유지한다.
+
+```c
+#define WINDOW_SIZE 100   // 1kHz 기준 100ms
+```
+
+Sliding Window는 새 샘플을 추가하기 전에 가장 오래된 샘플을 제거하는 방식으로 동작한다.
+
+```c
+delta_v -= delta_v_window[window_idx];
+spom    -= spom_window[window_idx];
+
+delta_v_window[window_idx] = delta_v_sample;
+spom_window[window_idx] = spom_sample;
+
+delta_v += delta_v_sample;
+spom    += spom_sample;
+```
+
+이를 통해 ΔV와 SPOM은 시스템 시작 이후 전체 누적값이 아니라, 최근 100ms 동안의 충돌 특성만 반영하게 된다.
+
+즉, 본 알고리즘은 다음과 같은 기준으로 충돌을 판단한다.
+
+```text
+최근 100ms 동안의 ΔV >= DELTA_V_TH
+AND
+최근 100ms 동안의 SPOM >= SPOM_TH
+```
+
+Sliding Window 적용을 통해 다음 효과를 얻을 수 있다.
+
+- ΔV와 SPOM의 무한 누적 방지
+- 장시간 noise 누적에 의한 오탐 감소
+- 실제 crash pulse와 같이 짧은 시간 구간에서 발생하는 충격 특성 반영
+- threshold tuning 기준 명확화
+
+## 14. 최종 구현 코드
+
+### 14.1 상수 및 상태 정의
 
 ```c
 #define DT_SEC          0.001f
@@ -207,7 +256,7 @@ static uint16_t window_idx = 0;
 static uint16_t lockout_ms = 0;
 ```
 
-### 13.2 LPF 함수
+### 14.2 LPF 함수
 
 ```c
 static float LPF_Update(float prev, float raw)
@@ -216,7 +265,7 @@ static float LPF_Update(float prev, float raw)
 }
 ```
 
-### 13.3 Dominant Axis 선택 함수
+### 14.3 Dominant Axis 선택 함수
 
 ```c
 static float Get_Dominant_Accel(float ax, float ay, float az)
@@ -231,7 +280,7 @@ static float Get_Dominant_Accel(float ax, float ay, float az)
 }
 ```
 
-### 13.4 Crash Metric Reset 함수
+### 14.4 Crash Metric Reset 함수
 
 ```c
 static void CrashMetric_Reset(void)
@@ -252,7 +301,7 @@ static void CrashMetric_Reset(void)
 }
 ```
 
-### 13.5 충돌 감지 업데이트 함수
+### 14.5 충돌 감지 업데이트 함수
 
 ```c
 void CrashDetection_Update_1ms(Accel_t raw)
@@ -351,7 +400,7 @@ void CrashDetection_Update_1ms(Accel_t raw)
 }
 ```
 
-### 13.6 CAN Emergency 송신 함수
+### 14.6 CAN Emergency 송신 함수
 
 ```c
 void Send_Crash_Emergency_CAN(void)
@@ -381,7 +430,7 @@ void Send_Crash_Emergency_CAN(void)
 }
 ```
 
-## 14. CAN Emergency 메시지
+## 15. CAN Emergency 메시지
 
 충돌 판단 시 다음 CAN 메시지를 송신한다.
 
