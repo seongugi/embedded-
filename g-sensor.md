@@ -27,15 +27,15 @@ velocity signal을 계산한다고 설명한다.
 
 또한 다음과 같은 수식을 제시한다.
 
-\[
+$$
 \Delta V_i
 =
 \sum_{k=0}^{i}
 a_k \cdot \Delta t
-\]
+$$
 
-- \(a_k\): k번째 샘플의 가속도
-- \(\Delta t\): 샘플링 시간 간격
+- $a_k$ : k번째 샘플의 가속도
+- $\Delta t$ : 샘플링 시간 간격
 - 의미: 충돌 동안의 누적 속도 변화량(ΔV)
 
 즉, 가속도 데이터를 시간 적분하여  
@@ -54,22 +54,22 @@ High Order Signal Energy(SPOM)도 함께 계산한다.
 
 특허 수식:
 
-\[
+$$
 SPOM_i
 =
 \sum_{k=2}^{i}
 \left(
 \frac{
-\left| a_k - a_{k-2} \right|
+|a_k - a_{k-2}|
 }{
 2\Delta t
 }
 \right)^S
-\]
+$$
 
-- \(a_k - a_{k-2}\): 가속도 변화량
-- \(\frac{a_k-a_{k-2}}{2\Delta t}\): jerk(가속도 변화율)
-- \(S\): high-order power (본 프로젝트에서는 \(S=4\))
+- $a_k - a_{k-2}$ : 가속도 변화량
+- $\frac{a_k-a_{k-2}}{2\Delta t}$ : jerk(가속도 변화율)
+- $S$ : high-order power (본 프로젝트에서는 $S=4$)
 - 의미: 충돌의 급격성과 intensity를 강조한 metric
 
 해당 수식은 jerk(가속도 변화율)를 기반으로 하는 metric으로,  
