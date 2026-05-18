@@ -27,12 +27,7 @@ velocity signal을 계산한다고 설명한다.
 
 또한 다음과 같은 수식을 제시한다.
 
-$$
-\Delta V_i
-=
-\sum_{k=0}^{i}
-a_k \cdot \Delta t
-$$
+ΔVᵢ = Σ(k=0→i) aₖ · Δt
 
 - $a_k$ : k번째 샘플의 가속도
 - $\Delta t$ : 샘플링 시간 간격
@@ -54,18 +49,7 @@ High Order Signal Energy(SPOM)도 함께 계산한다.
 
 특허 수식:
 
-$$
-SPOM_i
-=
-\sum_{k=2}^{i}
-\left(
-\frac{
-|a_k - a_{k-2}|
-}{
-2\Delta t
-}
-\right)^S
-$$
+SPOMᵢ = Σ(k=2→i) { |aₖ - aₖ₋₂| / (2Δt) }^S
 
 - $a_k - a_{k-2}$ : 가속도 변화량
 - $\frac{a_k-a_{k-2}}{2\Delta t}$ : jerk(가속도 변화율)
