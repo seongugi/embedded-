@@ -166,13 +166,16 @@ filtered = alpha * prev + (1.0f - alpha) * raw;
 ### 13.1 상수 및 상태 정의
 
 ```c
-#define DT_SEC      0.001f
-#define G_TO_MS2    9.81f
-#define LPF_ALPHA   0.8f
+#define DT_SEC          0.001f
+#define G_TO_MS2        9.81f
+#define LPF_ALPHA       0.8f
 
-#define DELTA_V_TH  0.8f
-#define SPOM_TH     500000.0f
-#define LOCKOUT_MS  1000
+#define WINDOW_SIZE     100     // 1kHz 기준 100ms
+
+#define DELTA_V_TH      0.8f
+#define SPOM_TH         500000.0f
+
+#define LOCKOUT_MS      1000
 
 typedef enum {
     CRASH_NORMAL = 0,
@@ -194,9 +197,13 @@ static float f_az = 0.0f;
 
 static float a_hist[3] = {0.0f, 0.0f, 0.0f};
 
+static float delta_v_window[WINDOW_SIZE] = {0.0f};
+static float spom_window[WINDOW_SIZE] = {0.0f};
+
 static float delta_v = 0.0f;
 static float spom = 0.0f;
 
+static uint16_t window_idx = 0;
 static uint16_t lockout_ms = 0;
 ```
 
@@ -224,73 +231,127 @@ static float Get_Dominant_Accel(float ax, float ay, float az)
 }
 ```
 
-### 13.4 충돌 감지 업데이트 함수
+### 13.4 Crash Metric Reset 함수
+
+```c
+static void CrashMetric_Reset(void)
+{
+    delta_v = 0.0f;
+    spom = 0.0f;
+
+    window_idx = 0;
+
+    for (int i = 0; i < WINDOW_SIZE; i++) {
+        delta_v_window[i] = 0.0f;
+        spom_window[i] = 0.0f;
+    }
+
+    a_hist[0] = 0.0f;
+    a_hist[1] = 0.0f;
+    a_hist[2] = 0.0f;
+}
+```
+
+### 13.5 충돌 감지 업데이트 함수
 
 ```c
 void CrashDetection_Update_1ms(Accel_t raw)
 {
     float a_dom_g;
     float a_dom_ms2;
+
     float jerk;
     float j2;
     float j4;
 
+    float delta_v_sample;
+    float spom_sample;
+
     switch (crash_state)
     {
     case CRASH_NORMAL:
+
+        // 1. LPF 적용
         f_ax = LPF_Update(f_ax, raw.ax);
         f_ay = LPF_Update(f_ay, raw.ay);
         f_az = LPF_Update(f_az, raw.az);
 
+        // 2. Dominant Axis 선택
         a_dom_g = Get_Dominant_Accel(f_ax, f_ay, f_az);
+
+        // 3. g → m/s² 변환
         a_dom_ms2 = a_dom_g * G_TO_MS2;
 
-        delta_v += a_dom_ms2 * DT_SEC;
+        // 4. ΔV sample 계산
+        delta_v_sample = a_dom_ms2 * DT_SEC;
 
+        // 5. SPOM sample 계산
         jerk = fabsf(a_dom_ms2 - a_hist[0]) / (2.0f * DT_SEC);
 
         j2 = jerk * jerk;
         j4 = j2 * j2;
 
-        spom += j4;
+        spom_sample = j4;
 
+        // 6. Sliding Window Update
+        delta_v -= delta_v_window[window_idx];
+        spom    -= spom_window[window_idx];
+
+        delta_v_window[window_idx] = delta_v_sample;
+        spom_window[window_idx] = spom_sample;
+
+        delta_v += delta_v_sample;
+        spom    += spom_sample;
+
+        // 7. Window Index Update
+        window_idx++;
+
+        if (window_idx >= WINDOW_SIZE) {
+            window_idx = 0;
+        }
+
+        // 8. History Update
         a_hist[0] = a_hist[1];
         a_hist[1] = a_hist[2];
         a_hist[2] = a_dom_ms2;
 
+        // 9. Threshold 판단
         if (delta_v >= DELTA_V_TH &&
             spom >= SPOM_TH)
         {
             crash_state = CRASH_DETECTED;
         }
+
         break;
 
     case CRASH_DETECTED:
+
+        // Emergency CAN TX
         Send_Crash_Emergency_CAN();
 
-        delta_v = 0.0f;
-        spom = 0.0f;
+        // Metric Reset
+        CrashMetric_Reset();
 
-        a_hist[0] = 0.0f;
-        a_hist[1] = 0.0f;
-        a_hist[2] = 0.0f;
-
+        // LOCKOUT 진입
         lockout_ms = 0;
         crash_state = CRASH_LOCKOUT;
+
         break;
 
     case CRASH_LOCKOUT:
+
         lockout_ms++;
 
         if (lockout_ms >= LOCKOUT_MS) {
             crash_state = CRASH_NORMAL;
         }
+
         break;
     }
 }
 ```
 
-### 13.5 CAN Emergency 송신 함수
+### 13.6 CAN Emergency 송신 함수
 
 ```c
 void Send_Crash_Emergency_CAN(void)
@@ -307,7 +368,14 @@ void Send_Crash_Emergency_CAN(void)
     txData[0] = 0x01; // Crash Emergency Flag
 
     for (int i = 0; i < 3; i++) {
-        HAL_CAN_AddTxMessage(&hcan, &txHeader, txData, &txMailbox);
+
+        HAL_CAN_AddTxMessage(
+            &hcan,
+            &txHeader,
+            txData,
+            &txMailbox
+        );
+
         HAL_Delay(10);
     }
 }
