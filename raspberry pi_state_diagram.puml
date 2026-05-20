@@ -1,0 +1,47 @@
+@startuml
+title Raspberry Pi State Diagram - User Authentication & Head Tracking
+
+[*] --> INIT
+
+INIT : Initialize Camera
+INIT : Initialize CAN Interface
+INIT : Load Registered User Data
+INIT --> USER_AUTH
+
+USER_AUTH : Capture face image
+USER_AUTH : Identify user
+
+USER_AUTH --> REQUEST_PRESSURE : Unknown user
+USER_AUTH --> LOAD_USER_DATA : Known user
+
+REQUEST_PRESSURE : Send pressure sensor request to STM via CAN
+REQUEST_PRESSURE --> WAIT_PRESSURE
+
+WAIT_PRESSURE : Receive pressure sensor value from STM
+WAIT_PRESSURE --> MEASURE_HEAD_LENGTH : Head contact detected
+WAIT_PRESSURE --> REQUEST_PRESSURE : Head contact not detected
+
+MEASURE_HEAD_LENGTH : Measure front-back head length using camera
+MEASURE_HEAD_LENGTH : Save measured head length
+MEASURE_HEAD_LENGTH --> HEAD_POSITION_TRACKING
+
+LOAD_USER_DATA : Load stored head length / user parameters
+LOAD_USER_DATA --> HEAD_POSITION_TRACKING
+
+HEAD_POSITION_TRACKING : Capture head position using camera
+HEAD_POSITION_TRACKING : Calculate head coordinates (x, y, z)
+HEAD_POSITION_TRACKING : Send (x, y, z) to STM via CAN
+
+HEAD_POSITION_TRACKING --> HEAD_POSITION_TRACKING : Repeat tracking cycle
+
+HEAD_POSITION_TRACKING --> ERROR : Camera error / CAN error
+REQUEST_PRESSURE --> ERROR : CAN transmission error
+WAIT_PRESSURE --> ERROR : CAN reception timeout
+MEASURE_HEAD_LENGTH --> ERROR : Measurement failure
+
+ERROR : Log error
+ERROR : Try recovery
+ERROR --> INIT : Recovery success
+ERROR --> [*] : Critical failure
+
+@enduml
